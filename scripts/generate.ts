@@ -42,10 +42,10 @@ async function main() {
       result = await collect(
         client,
         building,
-        JSON.parse(process.env.FOREASY_MACHINE_CONFIG || "[]"),
+        JSON.parse(process.env.FOREASY_MACHINE_CONFIG || "null"),
         process.env.FOREASY_CONTRACT || "unverified",
         Number(process.env.FOREASY_PROBE_DATE_OFFSET || 0),
-        process.env.FOREASY_PROBE_TIME || "09:00",
+        process.env.FOREASY_PROBE_TIME || "",
         now,
       );
     } finally {
