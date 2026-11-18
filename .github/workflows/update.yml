@@ -44,7 +44,7 @@ jobs:
           FOREASY_CONTRACT: ${{ vars.FOREASY_CONTRACT || 'unverified' }}
           FOREASY_MAX_CALLS: ${{ vars.FOREASY_MAX_CALLS || '40' }}
           FOREASY_PROBE_DATE_OFFSET: ${{ vars.FOREASY_PROBE_DATE_OFFSET || '0' }}
-          FOREASY_PROBE_TIME: ${{ vars.FOREASY_PROBE_TIME || '09:00' }}
+          FOREASY_PROBE_TIME: ${{ vars.FOREASY_PROBE_TIME }}
       - name: Preservar token cifrado inclusive se a coleta falhar
         if: always() && steps.generate.outcome != 'skipped' && hashFiles('.private/token.bin') != ''
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
