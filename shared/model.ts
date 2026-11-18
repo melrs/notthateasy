@@ -2,6 +2,8 @@ export const ZONE = "America/Sao_Paulo";
 export type Kind = "wash" | "dry";
 export type Mode = Kind | "pair";
 export type State = "free" | "busy" | "unknown";
+export type SlotState = State | "reported";
+export const REPORTED_START = "Início indicado pela Foreasy; ciclo não confirmado";
 export type Machine = {
   id: number;
   kind: Kind;
@@ -33,7 +35,7 @@ export type Manifest = {
 export type Option = { wash?: number; dry?: number; end: string };
 export type Slot = {
   start: string;
-  state: State;
+  state: SlotState;
   reason: string;
   options: Option[];
 };
@@ -76,7 +78,7 @@ export function plan(
     observations.map((o) => [`${o.machineId}:${Date.parse(o.start)}`, o]),
   );
   const eligible = machines.filter((m) => m.enabled);
-  const check = (m: Machine, t: number): { state: State; reason: string } => {
+  const check = (m: Machine, t: number): { state: SlotState; reason: string } => {
     if (t < now + lead(m.duration) * 60000)
       return { state: "busy", reason: "Antecedência mínima" };
     const o = index.get(`${m.id}:${t}`);
@@ -86,11 +88,12 @@ export function plan(
       Date.parse(o.checkedAt) > now + 60000
     )
       return { state: "unknown", reason: "Snapshot vencido" };
-    return o;
+    return o.state === "unknown" && o.reason === REPORTED_START ? { state: "reported", reason: REPORTED_START } : o;
   };
   return starts(date).map((start) => {
     const t = Date.parse(start);
     const options: Option[] = [];
+    const reportedOptions: Option[] = [];
     let uncertain = false;
     const reasons = new Set<string>();
     const first = eligible.filter(
@@ -106,8 +109,8 @@ export function plan(
     for (const a of first) {
       const ca = check(a, t);
       if (mode !== "pair") {
-        if (ca.state === "free")
-          options.push({
+        if (ca.state === "free" || ca.state === "reported")
+          (ca.state === "free" ? options : reportedOptions).push({
             [a.kind]: a.id,
             end: new Date(t + a.duration * 60000).toISOString(),
           });
@@ -125,8 +128,8 @@ export function plan(
       for (const b of dryers) {
         const dryStart = t + (a.duration + transfer) * 60000;
         const cb = check(b, dryStart);
-        if (ca.state === "free" && cb.state === "free")
-          options.push({
+        if ((ca.state === "free" || ca.state === "reported") && (cb.state === "free" || cb.state === "reported"))
+          (ca.state === "free" && cb.state === "free" ? options : reportedOptions).push({
             wash: a.id,
             dry: b.id,
             end: new Date(dryStart + b.duration * 60000).toISOString(),
@@ -139,11 +142,11 @@ export function plan(
     }
     return {
       start,
-      state: options.length ? "free" : uncertain ? "unknown" : "busy",
+      state: options.length ? "free" : reportedOptions.length ? "reported" : uncertain ? "unknown" : "busy",
       reason: options.length
         ? "Livre no snapshot"
-        : [...reasons][0] || "Indisponível",
-      options,
+        : reportedOptions.length ? REPORTED_START : [...reasons][0] || "Indisponível",
+      options: options.length ? options : reportedOptions,
     };
   });
 }
