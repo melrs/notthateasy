@@ -57,7 +57,7 @@ function Window({ slots, mode }: { slots: Slot[]; mode: Mode }) {
             ? "Livre"
             : first.state === "busy"
               ? "Indisponível"
-              : "Não confirmado"}
+              : first.state === "reported" ? "Indicado" : "Não confirmado"}
         </span>
         <span aria-hidden="true">{open ? "−" : "+"}</span>
       </button>
@@ -70,15 +70,17 @@ function Window({ slots, mode }: { slots: Slot[]; mode: Mode }) {
                 <span>
                   {s.state === "free"
                     ? `${mode === "pair" ? "Lavar e secar" : "Ciclo"} até ${endLabel(s.start, s.options[0].end)}`
-                    : s.reason}
+                    : s.state === "reported"
+                      ? `Previsão até ${endLabel(s.start, s.options[0].end)}`
+                      : s.reason}
                 </span>
               </summary>
               {s.options.length > 0 ? (
                 <ul>
                   {[...new Set(s.options.map((o) => o.end))].map((end) => (
                     <li key={end}>
-                      Conclusão às {endLabel(s.start, end)} · disponibilidade no
-                      snapshot
+                      {s.state === "reported" ? "Fim estimado" : "Conclusão"} às {endLabel(s.start, end)}
+                      {s.state === "reported" && " · confirme no aplicativo oficial"}
                     </li>
                   ))}
                 </ul>
