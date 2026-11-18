@@ -234,3 +234,24 @@ describe("privacidade", () => {
     expect(a.days[0].observations[0].state).toBe("unknown");
   });
 });
+
+it('catalogação automática inclui só tipos claros e agendamento autorizado', () => {
+  expect(machines([
+    {id:1,type:'lava-roupas',permite_agendamento:1,status:'occupied'},
+    {id:2,type:'other',name:'Secadora A',permite_agendamento:1},
+    {id:3,type:'washer',permite_agendamento:0},
+    {id:4,type:'washer/dryer',permite_agendamento:1},
+    {id:5,type:'dryer'},
+  ],null)).toEqual([
+    {id:1,kind:'wash',duration:60,enabled:true}, {id:2,kind:'dry',duration:60,enabled:true},
+  ]);
+});
+it('resposta pontual não prova o ciclo e manutenção confirmada bloqueia',async()=>{
+  const c = client({machine_ids:[7002]});
+  const result = await collect(c,123,config,'observed-v1',0,'09:00',now);
+  expect(result.days[0].observations.some(o=>o.reason==='Manutenção' && o.state==='busy')).toBe(true);
+  expect(result.days[0].observations.some(o=>o.reason==='Início indicado pela Foreasy; ciclo não confirmado' && o.state==='unknown')).toBe(true);
+  expect(result.days[0].observations.some(o=>o.state==='free')).toBe(false);
+  expect(c.calls).toBe(26);
+  expect(JSON.stringify(anonymize(result.machines,result.days))).not.toContain('7002');
+});
