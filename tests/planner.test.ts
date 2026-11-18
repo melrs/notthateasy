@@ -134,3 +134,15 @@ describe("agenda", () => {
     expect(g).toHaveLength(2);
   });
 });
+
+it('mostra uma indicação só quando as duas etapas foram consultadas', () => {
+  const when=Date.parse('2030-01-01T12:00:00Z');
+  const indication = (machineId: number, start: string) => ({start,machineId,state:'unknown' as const,reason:'Início indicado pela Foreasy; ciclo não confirmado',checkedAt:new Date(when).toISOString()});
+  const a=indication(1,'2030-01-01T14:00:00.000Z');
+  const b=indication(2,'2030-01-01T15:00:00.000Z');
+  const machines=[{id:1,kind:'wash' as const,duration:60,enabled:true},{id:2,kind:'dry' as const,duration:60,enabled:true}];
+  const at=(records: ReturnType<typeof indication>[])=>plan('2030-01-01','pair',machines,records,0,when).find(s=>s.start===a.start);
+  expect(at([a,b])?.state).toBe('reported');
+  expect(at([a,b])?.options[0].end).toBe('2030-01-01T16:00:00.000Z');
+  expect(at([a])?.state).toBe('unknown');
+});
