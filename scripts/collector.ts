@@ -2,6 +2,7 @@ import {
   addDate,
   dateSP,
   iso,
+  clock,
   starts,
   type Day,
   type Machine,
@@ -12,6 +13,7 @@ import {
   intervals,
   machines,
   overlaps,
+  pointMaintenance,
   type Interval,
 } from "./adapters";
 import type { Client } from "./client";
@@ -22,15 +24,15 @@ export async function collect(
   config: unknown,
   contract: string,
   offset = 0,
-  time = "09:00",
+  time = "",
   now = Date.now(),
 ): Promise<Collection> {
   if (
-    !["unverified", "day-v1", "cycle-v1"].includes(contract) ||
+    !["unverified", "day-v1", "cycle-v1", "observed-v1"].includes(contract) ||
     !Number.isInteger(offset) ||
     offset < 0 ||
     offset > 6 ||
-    !/^([01]\d|2[0-3]):[0-5][05]$/.test(time)
+    (time !== "" && !/^([01]\d|2[0-3]):[0-5][05]$/.test(time))
   )
     throw new Error("config-invalid");
   const catalog = machines(
@@ -110,9 +112,12 @@ export async function collect(
             checkedAt,
           });
         }
-  } else if (contract === "cycle-v1") {
-    const date = days[offset].date;
-    const from = Date.parse(iso(date, time));
+  } else if (contract === "cycle-v1" || contract === "observed-v1") {
+    const observed = contract === "observed-v1";
+    // Sample near the first schedulable point, with room for the next hourly snapshot.
+    const next = Math.ceil((now + 95 * 60000) / 300000) * 300000;
+    const date = observed && !time ? addDate(dateSP(next), offset) : days[offset].date;
+    const from = Date.parse(iso(date, time || (observed ? clock(next) : "09:00")));
     const points = new Set<number>();
     for (let i = 0; i < 6; i++) {
       const t = from + i * 300000;
@@ -120,7 +125,7 @@ export async function collect(
       for (const w of usable.filter((m) => m.kind === "wash"))
         points.add(t + w.duration * 60000);
     }
-    for (const t of [...points].sort((a, b) => a - b)) {
+    for (const t of (usable.length ? [...points].sort((a, b) => a - b) : [])) {
       const date = dateSP(t),
         clock = new Date(t - 3 * 3600000).toISOString().slice(11, 16);
       const day = days.find((d) => d.date === date);
@@ -133,9 +138,23 @@ export async function collect(
       } catch {
         partial = true;
       }
-      const maintenance = await safeIntervals(
-        `/manutencao-programada/ativas/building/${building}?date=${date}&time=${clock}`,
-      );
+      const maintenanceRoute = `/manutencao-programada/ativas/building/${building}?date=${date}&time=${clock}`;
+      if (observed) {
+        let maintenance: unknown;
+        try { maintenance = await client.get(maintenanceRoute); } catch { /* No evidence. */ }
+        for (const machine of usable) {
+          const active = pointMaintenance(maintenance, machine.id);
+          const reported = available(raw, machine.id);
+          const state = active === true || reported === false ? "busy" : "unknown";
+          day.observations.push({
+            start:new Date(t).toISOString(), machineId:machine.id, state,
+            reason:active === true ? "Manutenção" : reported === false ? "Indisponível na Foreasy" : reported === true && active === false
+              ? "Início indicado pela Foreasy; ciclo não confirmado" : "Não confirmado", checkedAt,
+          });
+        }
+        continue;
+      }
+      const maintenance = await safeIntervals(maintenanceRoute);
       const b = await getBlocked(date);
       for (const machine of usable) {
         const end = t + machine.duration * 60000;
