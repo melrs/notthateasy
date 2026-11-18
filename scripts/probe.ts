@@ -1,4 +1,5 @@
 import { dateSP, addDate } from '../shared/model';
+import { catalogKind } from './adapters';
 
 // Logs can be public. Never emit upstream values, raw keys, lengths, URLs, or exception text.
 const fields = [
@@ -16,13 +17,12 @@ const fields = [
   'horario', 'horarios_bloqueados', 'horariosBloqueados', 'periodos',
 ] as const;
 const fieldType = (value: unknown) => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
-export const knownMachineTypes = { wash: ['wash','washer','washing','washing machine','washing_machine','lavadora','lavar','lavagem','lava'], dry: ['dry','dryer','drying','drying machine','drying_machine','secadora','secar','secagem','seca'] } as const;
 function record(value: unknown): Record<string, unknown> | undefined {
   return fieldType(value) === 'object' ? value as Record<string, unknown> : undefined;
 }
 export function describeSchema(value: unknown): string {
   const root = record(value);
-  const containers = root ? ['data', 'machines', 'maquinas', 'slots', 'bloqueios', 'manutencoes', 'maintenance', 'rows', 'items'].filter(key => Array.isArray(root[key])) : [];
+  const containers = root ? ['data', 'machines', 'maquinas', 'slots', 'bloqueios', 'manutencoes', 'maintenance', 'rows', 'items', 'slots_bloqueados'].filter(key => Array.isArray(root[key])) : [];
   const rows: unknown[] = Array.isArray(value) ? value : containers.flatMap(key => (root![key] as unknown[]).slice(0, 20));
   const samples = rows.length ? rows.slice(0, 20).map(record).filter((row): row is Record<string, unknown> => row !== undefined) : root ? [root] : [];
   const shape = fields.flatMap(key => {
@@ -31,7 +31,7 @@ export function describeSchema(value: unknown): string {
   });
   const dynamic = root ? Object.keys(root).map(k => /^\d+$/.test(k) ? 'numérico' : /^\d{2}:\d{2}(?::\d{2})?$/.test(k) ? 'horário' : /^\d{4}-\d{2}-\d{2}$/.test(k) ? 'data' : '') : [];
   const keyShapes = [...new Set(dynamic.filter(Boolean))].sort();
-  const types = [...new Set(samples.flatMap(row => typeof row.type === 'string' ? Object.entries(knownMachineTypes).filter(([, accepted]) => (accepted as readonly string[]).includes((row.type as string).toLowerCase().trim())).map(([kind])=>kind) : []))].sort();
+  const types = [...new Set(samples.map(catalogKind).filter(Boolean))].sort();
   return [fieldType(value), ...(containers.length ? [`listas permitidas: ${containers.join(', ')}`] : []), ...(shape.length ? [shape.join(', ')] : ['sem evidência de campos conhecidos']), ...(keyShapes.length ? [`padrão de chaves: ${keyShapes.join(', ')}`] : []), ...(types.length ? [`classes de catálogo reconhecidas: ${types.join(', ')}`] : [])].join(' · ');
 }
 
