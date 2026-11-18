@@ -362,3 +362,7 @@ footer p + p {
     font-size: 11px;
   }
 }
+
+.window.reported { background: #edf4f7; border-color: #d4e3e9; }
+.reported .status-dot { background: #4a7285; }
+.reported .status-label { color: #315b70; }
