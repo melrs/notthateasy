@@ -10,8 +10,13 @@ const fields = [
   'hora_inicio', 'hora_fim', 'data_inicio', 'data_fim', 'inicio', 'fim',
   'time', 'machine_ids', 'slots', 'horarios', 'bloqueios', 'maintenance',
   'manutencoes', 'machines', 'maquinas', 'schedules', 'rows', 'items',
+  'blockedSlots', 'blocked_slots', 'slotsBloqueados', 'slots_bloqueados',
+  'blocked', 'reservas', 'success', 'hasMaintenance', 'has_maintenance',
+  'manutencao', 'em_manutencao', 'is_under_maintenance', 'starts_at', 'ends_at',
+  'horario', 'horarios_bloqueados', 'horariosBloqueados', 'periodos',
 ] as const;
 const fieldType = (value: unknown) => value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+export const knownMachineTypes = { wash: ['wash','washer','washing','washing machine','washing_machine','lavadora','lavar','lavagem','lava'], dry: ['dry','dryer','drying','drying machine','drying_machine','secadora','secar','secagem','seca'] } as const;
 function record(value: unknown): Record<string, unknown> | undefined {
   return fieldType(value) === 'object' ? value as Record<string, unknown> : undefined;
 }
@@ -24,7 +29,10 @@ export function describeSchema(value: unknown): string {
     const types = [...new Set(samples.filter(x => Object.hasOwn(x, key)).map(x => fieldType(x[key])))].sort();
     return types.length ? [`${key}:${types.join('|')}`] : [];
   });
-  return [fieldType(value), ...(containers.length ? [`listas permitidas: ${containers.join(', ')}`] : []), ...(shape.length ? [shape.join(', ')] : ['sem evidência de campos conhecidos'])].join(' · ');
+  const dynamic = root ? Object.keys(root).map(k => /^\d+$/.test(k) ? 'numérico' : /^\d{2}:\d{2}(?::\d{2})?$/.test(k) ? 'horário' : /^\d{4}-\d{2}-\d{2}$/.test(k) ? 'data' : '') : [];
+  const keyShapes = [...new Set(dynamic.filter(Boolean))].sort();
+  const types = [...new Set(samples.flatMap(row => typeof row.type === 'string' ? Object.entries(knownMachineTypes).filter(([, accepted]) => (accepted as readonly string[]).includes((row.type as string).toLowerCase().trim())).map(([kind])=>kind) : []))].sort();
+  return [fieldType(value), ...(containers.length ? [`listas permitidas: ${containers.join(', ')}`] : []), ...(shape.length ? [shape.join(', ')] : ['sem evidência de campos conhecidos']), ...(keyShapes.length ? [`padrão de chaves: ${keyShapes.join(', ')}`] : []), ...(types.length ? [`classes de catálogo reconhecidas: ${types.join(', ')}`] : [])].join(' · ');
 }
 
 type ProbeOptions = { email: string; password: string; expectedBuilding?: string; fetcher?: typeof fetch; delay?: () => Promise<void>; log?: (line: string) => void; };
