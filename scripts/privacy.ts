@@ -2,6 +2,8 @@ import type { Day, Machine, Manifest, Observation } from "../shared/model";
 const REASONS = new Set([
   "Livre no snapshot",
   "Ocupado",
+  "Indisponível na Foreasy",
+  "Início indicado pela Foreasy; ciclo não confirmado",
   "Manutenção",
   "Não confirmado",
   "Limite de consultas",
@@ -47,6 +49,7 @@ export function anonymize(machines: Machine[], days: Day[]) {
           const complete =
             new Set(list.map((o) => o.machineId)).size === ids.size;
           const uncertain = list.find((o) => o.state === "unknown");
+          const tentative = list.some((o) => o.state === "unknown" && o.reason === "Início indicado pela Foreasy; ciclo não confirmado");
           const source = free || uncertain || list[0];
           observations.push({
             start,
@@ -56,7 +59,9 @@ export function anonymize(machines: Machine[], days: Day[]) {
               ? "Livre no snapshot"
               : complete && !uncertain
                 ? source.reason
-                : "Não confirmado",
+                : tentative
+                  ? "Início indicado pela Foreasy; ciclo não confirmado"
+                  : "Não confirmado",
             checkedAt: list.map((o) => o.checkedAt).sort()[0],
           });
         }
